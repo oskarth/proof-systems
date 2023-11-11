@@ -5,6 +5,7 @@
 //! We generate the SRS within the test in this module.
 //! If you modify the SRS, you will need to regenerate the SRS by passing the `SRS_OVERWRITE` env var.
 
+use std::io::Cursor;
 use std::path::PathBuf;
 use std::{fs::File, io::BufReader};
 
@@ -28,14 +29,38 @@ fn get_srs_path<G: KimchiCurve>() -> PathBuf {
 
 /// Obtains an SRS for a specific curve from disk.
 /// Panics if the SRS does not exists.
+// pub fn get_srs<G>() -> SRS<G>
+// where
+//     G: KimchiCurve,
+// {
+//     let srs_path = get_srs_path::<G>();
+//     let file =
+//         File::open(srs_path.clone()).unwrap_or_else(|_| panic!("missing SRS file: {srs_path:?}"));
+//     let reader = BufReader::new(file);
+//     rmp_serde::from_read(reader).unwrap()
+// }
+
+// XXX: Hacky, should use SRS ENV to include bytes
+// We do this to simplify the build process for iOS app by embedding the SRS bytes
+// Instead of dealing with resources and IO
+//
+/// Obtains an SRS for a specific curve from embedded bytes.
+/// Panics if the SRS bytes are invalid.
 pub fn get_srs<G>() -> SRS<G>
 where
     G: KimchiCurve,
 {
-    let srs_path = get_srs_path::<G>();
-    let file =
-        File::open(srs_path.clone()).unwrap_or_else(|_| panic!("missing SRS file: {srs_path:?}"));
-    let reader = BufReader::new(file);
+    // Include the SRS file as a byte array at compile time
+    // Adjust the path to point to the correct file for each curve
+    let srs_bytes = match G::NAME {
+        "vesta" => include_bytes!(
+            "/Users/user/repos/github.com/oskarth/o1-labs/proof-systems/srs/vesta.srs"
+        ),
+        _ => panic!("Unsupported curve: {}", G::NAME),
+    };
+
+    // Create a cursor for the byte array and deserialize
+    let reader = Cursor::new(srs_bytes.as_ref());
     rmp_serde::from_read(reader).unwrap()
 }
 
